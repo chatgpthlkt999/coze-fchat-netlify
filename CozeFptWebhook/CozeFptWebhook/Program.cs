@@ -5,7 +5,8 @@ using Microsoft.Extensions.Caching.Memory;
 Console.OutputEncoding = Encoding.UTF8;
 
 var builder = WebApplication.CreateBuilder(args);
-
+var port = Environment.GetEnvironmentVariable("PORT") ?? "10000";
+builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
@@ -402,3 +403,4 @@ app.MapGet("/", () => Results.Ok(new { ok = true, service = "CozeFptWebhook" }))
 app.MapGet("/webhook/fchat", () => Results.Ok(new { ok = true, hint = "Use POST /webhook/fchat" }));
 
 app.Run();
+
