@@ -1,4 +1,6 @@
-﻿using Microsoft.Extensions.Caching.Memory;
+﻿using System.Security.Cryptography;
+using Microsoft.Extensions.Primitives;
+using Microsoft.Extensions.Caching.Memory;
 using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
@@ -21,6 +23,35 @@ builder.Services.AddHttpClient("fchat", client =>
 });
 
 var app = builder.Build();
+static bool VerifyApiKey(HttpRequest request, IConfiguration config, string configPath, out IResult? fail)
+{
+    var expected = config[configPath];
+    if (string.IsNullOrWhiteSpace(expected))
+    {
+        fail = Results.Problem($"Missing config: {configPath}");
+        return false;
+    }
+
+    if (!request.Query.TryGetValue("api_key", out StringValues provided) || StringValues.IsNullOrEmpty(provided))
+    {
+        fail = Results.Unauthorized();
+        return false;
+    }
+
+    var a = Encoding.UTF8.GetBytes(expected);
+    var b = Encoding.UTF8.GetBytes(provided.ToString());
+
+    var ok = a.Length == b.Length && CryptographicOperations.FixedTimeEquals(a, b);
+    if (!ok)
+    {
+        fail = Results.Unauthorized();
+        return false;
+    }
+
+    fail = null;
+    return true;
+}
+
 app.UseSwagger();
 app.UseSwaggerUI();
 
@@ -294,6 +325,12 @@ app.MapPost("/webhook/fchat", async (
         log.LogInformation("[FCHAT] trace={Trace} empty body", trace);
         return Results.Ok(new { ok = true });
     }
+    if (!VerifyApiKey(request, config, "Security:FChatApiKey", out var fail))
+    {
+        Console.WriteLine("[FCHAT] api_key invalid/missing");
+        return fail!;
+    }
+
 
     // (3) Parse JSON: message.text + message.user.email
     string text = "";
